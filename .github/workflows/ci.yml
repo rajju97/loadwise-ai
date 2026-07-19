@@ -11,11 +11,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: npm
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
       - run: npm install --no-audit --no-fund
       - run: npm run build
-      - run: pip install -r requirements.txt pytest
+      - run: pip install -r requirements-dev.txt
       - run: npm run test:optimizer
