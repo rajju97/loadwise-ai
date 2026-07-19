@@ -6,7 +6,7 @@ A startup-ready MVP for intelligent vehicle load planning. Users can register, m
 
 - **Frontend:** React, TypeScript, Vite, React Three Fiber
 - **Backend:** Python, FastAPI
-- **Optimization:** Genetic search + extreme-point 3D bin packing + support, payload, fragility and balance constraints
+- **Optimization:** Budgeted genetic search + extreme-point 3D bin packing + support, payload, fragility and balance constraints
 - **Database/Auth:** Supabase Postgres, Auth and Row Level Security
 - **Deployment:** Vercel
 
@@ -23,7 +23,7 @@ Run the API in a second terminal:
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements-dev.txt
 uvicorn backend.app.main:app --reload --port 8000
 ```
 
@@ -33,9 +33,10 @@ The Vite dev server proxies `/api` to port `8000`.
 
 1. Create a Supabase project.
 2. Open SQL Editor and run `supabase/schema.sql`.
-3. Add the frontend URL and anon key to `.env.local`.
-4. Add the service-role key only to Vercel server environment variables. Never expose it with a `VITE_` prefix.
-5. In Supabase Auth URL configuration, add your local and Vercel callback URLs.
+3. Apply every SQL file in `supabase/migrations/` in filename order. The optimizer quota migration is required before `/api/optimize` can accept authenticated requests.
+4. Add the Supabase URL and publishable key to both the frontend and backend variables shown in `.env.example`.
+5. Do **not** configure a service-role key for this application. The optimizer validates the user's bearer token and calls a narrowly scoped authenticated RPC.
+6. In Supabase Auth URL configuration, add your local and Vercel callback URLs.
 
 ## Vercel deployment
 
@@ -44,9 +45,34 @@ The Vite dev server proxies `/api` to port `8000`.
 3. Add all variables from `.env.example` in Project Settings → Environment Variables.
 4. Deploy. `vercel.json` routes the React SPA and Python API.
 
+## Optimizer security controls
+
+`POST /api/optimize` is not a public endpoint. It requires a valid Supabase access token in the `Authorization: Bearer <token>` header.
+
+Before CPU work begins, the API calls the Supabase `consume_optimizer_quota` RPC. The database validates the token and enforces a distributed per-user quota of six optimizer requests per minute. Anonymous and expired sessions are rejected.
+
+The optimizer also enforces defense-in-depth execution bounds:
+
+- maximum 60 physical cargo units per request
+- maximum population size 12 and 10 generations
+- dynamic search-evaluation budget based on cargo complexity
+- maximum eight-second optimizer wall-clock budget
+- 20-second Vercel function timeout
+
+The anonymous demo uses a precomputed sample plan, so it does not expose optimizer compute.
+
 ## API
 
 ### `POST /api/optimize`
+
+```bash
+curl -X POST http://localhost:8000/api/optimize \
+  -H 'Content-Type: application/json' \
+  -H 'Authorization: Bearer YOUR_SUPABASE_ACCESS_TOKEN' \
+  -d @request.json
+```
+
+Example `request.json`:
 
 ```json
 {
@@ -74,6 +100,22 @@ The Vite dev server proxies `/api` to port `8000`.
   "objective": "balanced_utilization"
 }
 ```
+
+Expected security responses:
+
+- `401` — missing, invalid or expired Supabase bearer token
+- `429` — per-user request quota exhausted; inspect `Retry-After`
+- `422` — request exceeds safe cargo or execution limits
+- `503` — authentication/quota service is unavailable; the API fails closed
+
+## Tests
+
+```bash
+python -m pytest backend/tests -q
+npm run build
+```
+
+The backend suite includes regression tests for anonymous rejection, authenticated requests, quota exhaustion and the 60-unit limit.
 
 ## Why a hybrid optimizer instead of “pure ML”
 
