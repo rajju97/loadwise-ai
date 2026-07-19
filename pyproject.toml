@@ -1,0 +1,10 @@
+[project]
+name = "loadwise-ai-api"
+version = "0.1.0"
+description = "FastAPI optimization service for LoadWise AI"
+requires-python = ">=3.13,<3.14"
+dependencies = [
+  "fastapi==0.115.6",
+  "pydantic==2.10.4",
+  "uvicorn==0.34.0",
+]
