@@ -11,6 +11,20 @@ from typing import Iterable
 from .models import LoadItem, OptimizationRequest, OptimizationResult, Placement, UnplacedItem
 
 EPSILON = 1e-7
+MAX_COMPLEXITY_BUDGET = 2_500_000
+MAX_SEARCH_EVALUATIONS = 120
+MAX_TIME_BUDGET_SECONDS = 8.0
+
+
+class OptimizationBudgetExceeded(RuntimeError):
+    """Raised when an optimization request reaches its safe CPU budget."""
+
+
+def _check_deadline(deadline: float) -> None:
+    if perf_counter() >= deadline:
+        raise OptimizationBudgetExceeded(
+            "The request exceeded the safe optimization runtime. Reduce cargo units and try again."
+        )
 
 
 @dataclass(frozen=True)
@@ -192,7 +206,7 @@ def candidate_cost(
     return compactness * 1.8 + floor_bias * 2.8 + support_penalty + balance_penalty * 0.11 + orientation_penalty * 0.15
 
 
-def pack_order(order: list[Unit], request: OptimizationRequest) -> PackOutcome:
+def pack_order(order: list[Unit], request: OptimizationRequest, deadline: float) -> PackOutcome:
     vehicle = request.vehicle
     vehicle_dims = (vehicle.length, vehicle.width, vehicle.height)
     vehicle_volume = prod(vehicle_dims)
@@ -201,11 +215,13 @@ def pack_order(order: list[Unit], request: OptimizationRequest) -> PackOutcome:
     current_weight = 0.0
 
     for unit in order:
+        _check_deadline(deadline)
         if current_weight + unit.weight > vehicle.max_payload + EPSILON:
             unplaced.append(unit)
             continue
         best: tuple[float, tuple[float, float, float], tuple[float, float, float]] | None = None
         for point in candidate_points(packed, vehicle_dims):
+            _check_deadline(deadline)
             for dims in orientations(unit):
                 ok, support = feasible(unit, point, dims, packed, vehicle_dims)
                 if not ok:
@@ -275,8 +291,10 @@ def initial_population(units: list[Unit], size: int, random: Random) -> list[lis
     return population[:size]
 
 
-def recommendations(outcome: PackOutcome, request: OptimizationRequest) -> list[str]:
+def recommendations(outcome: PackOutcome, request: OptimizationRequest, search_limited: bool = False) -> list[str]:
     notes: list[str] = []
+    if search_limited:
+        notes.append("Search stopped at the safe runtime limit; reduce cargo units for a deeper search.")
     if outcome.volume_utilization >= 85:
         notes.append("Excellent space utilization; the selected vehicle is a strong fit for this load.")
     elif outcome.volume_utilization >= 65:
@@ -300,19 +318,45 @@ def optimize(request: OptimizationRequest) -> OptimizationResult:
     started = perf_counter()
     units = expand_units(request.items)
     random = Random(42)
-    population_size = request.population_size or int(os.getenv("OPTIMIZER_POPULATION", "18"))
-    generations = request.generations or int(os.getenv("OPTIMIZER_GENERATIONS", "14"))
-    population_size = max(4, min(population_size, 40))
-    generations = max(1, min(generations, 40))
+
+    try:
+        configured_time_budget = float(os.getenv("OPTIMIZER_TIME_BUDGET_SECONDS", "8"))
+    except ValueError:
+        configured_time_budget = MAX_TIME_BUDGET_SECONDS
+    time_budget = max(1.0, min(configured_time_budget, MAX_TIME_BUDGET_SECONDS))
+    deadline = started + time_budget
+
+    requested_population = request.population_size or int(os.getenv("OPTIMIZER_POPULATION", "8"))
+    requested_generations = request.generations or int(os.getenv("OPTIMIZER_GENERATIONS", "6"))
+    unit_complexity = max(len(units) ** 3, 1)
+    max_evaluations = max(4, min(MAX_SEARCH_EVALUATIONS, MAX_COMPLEXITY_BUDGET // unit_complexity))
+    population_size = max(4, min(requested_population, 12, max_evaluations))
+    generations = max(1, min(requested_generations, 10, max_evaluations // population_size))
+
     population = initial_population(units, population_size, random)
     best_outcome: PackOutcome | None = None
+    search_limited = False
 
     for _ in range(generations):
-        evaluated = [(pack_order(order, request), order) for order in population]
+        evaluated: list[tuple[PackOutcome, list[Unit]]] = []
+        for order in population:
+            try:
+                evaluated.append((pack_order(order, request, deadline), order))
+            except OptimizationBudgetExceeded:
+                search_limited = True
+                break
+
+        if not evaluated:
+            break
+
         evaluated.sort(key=lambda pair: pair[0].score, reverse=True)
         if best_outcome is None or evaluated[0][0].score > best_outcome.score:
             best_outcome = evaluated[0][0]
-        elite_count = max(2, population_size // 4)
+
+        if search_limited:
+            break
+
+        elite_count = max(2, min(len(evaluated), population_size // 4))
         elites = [list(order) for _, order in evaluated[:elite_count]]
         next_population = elites.copy()
         while len(next_population) < population_size:
@@ -324,7 +368,12 @@ def optimize(request: OptimizationRequest) -> OptimizationResult:
             next_population.append(child)
         population = next_population
 
-    assert best_outcome is not None
+    if best_outcome is None:
+        raise OptimizationBudgetExceeded(
+            "The request exceeded the safe optimization runtime before a plan could be produced. "
+            "Reduce cargo units and try again."
+        )
+
     loading_sorted = sorted(
         best_outcome.packed,
         key=lambda box: (box.position[2], -box.unit.weight, box.position[0], box.position[1]),
@@ -343,14 +392,21 @@ def optimize(request: OptimizationRequest) -> OptimizationResult:
         )
         for box in best_outcome.packed
     ]
-    unplaced = [UnplacedItem(unit_id=unit.unit_id, name=unit.name, reason="No feasible position within payload and loading constraints") for unit in best_outcome.unplaced]
+    unplaced = [
+        UnplacedItem(
+            unit_id=unit.unit_id,
+            name=unit.name,
+            reason="No feasible position within payload and loading constraints",
+        )
+        for unit in best_outcome.unplaced
+    ]
     runtime_ms = int((perf_counter() - started) * 1000)
     placed_volume = sum(box.unit.volume for box in best_outcome.packed)
     placed_weight = sum(box.unit.weight for box in best_outcome.packed)
 
     return OptimizationResult(
         status="optimized",
-        algorithm="Hybrid GA + extreme-point 3D packing",
+        algorithm=f"Budgeted Hybrid GA + extreme-point 3D packing ({population_size}×{generations})",
         score=round(best_outcome.score, 2),
         volume_utilization=round(best_outcome.volume_utilization, 2),
         payload_utilization=round(best_outcome.payload_utilization, 2),
@@ -362,6 +418,6 @@ def optimize(request: OptimizationRequest) -> OptimizationResult:
         placed_volume=round(placed_volume, 2),
         placements=placements,
         unplaced=unplaced,
-        recommendations=recommendations(best_outcome, request),
+        recommendations=recommendations(best_outcome, request, search_limited),
         runtime_ms=runtime_ms,
     )
