@@ -14,4 +14,4 @@ export const demoItems: LoadItem[] = [
   { id: 'carton-c', name: 'Apparel cartons', sku: 'AP-110', quantity: 10, length: 55, width: 40, height: 35, weight: 22, allow_rotation: true, stackable: true, fragile: false, color: '#6e8798' },
 ]
 
-export const demoOptimizationResult = demoResult as OptimizationResult
+export const demoOptimizationResult = demoResult as unknown as OptimizationResult
