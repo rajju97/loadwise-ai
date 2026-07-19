@@ -27,14 +27,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let active = true
-    if (!supabase) {
+    const client = supabase
+    if (!client) {
       setLoading(false)
       return
     }
 
     const initialize = async () => {
       try {
-        const { data, error } = await supabase.auth.getSession()
+        const { data, error } = await client.auth.getSession()
         if (error) throw error
         if (!active) return
         setSession(data.session)
@@ -50,7 +51,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     void initialize()
-    const { data } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+    const { data } = client.auth.onAuthStateChange((_event, nextSession) => {
       if (!active) return
       setSession(nextSession)
       setUser(nextSession?.user ?? null)
