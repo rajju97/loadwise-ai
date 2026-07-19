@@ -1,0 +1,15 @@
+node_modules/
+dist/
+.venv/
+__pycache__/
+.pytest_cache/
+.env
+.env.local
+.vercel/
+.DS_Store
+
+*.tsbuildinfo
+__pycache__/
+*.py[cod]
+vite.config.js
+vite.config.d.ts
