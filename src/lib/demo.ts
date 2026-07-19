@@ -1,4 +1,5 @@
-import type { LoadItem, Vehicle } from '../types'
+import demoResult from './demo-result.json'
+import type { LoadItem, OptimizationResult, Vehicle } from '../types'
 
 export const demoVehicles: Vehicle[] = [
   { id: 'mini-truck', name: 'Mini Truck', type: 'Light commercial', length: 320, width: 165, height: 170, max_payload: 1500 },
@@ -12,3 +13,5 @@ export const demoItems: LoadItem[] = [
   { id: 'pallet-b', name: 'Retail pallet', sku: 'RT-440', quantity: 2, length: 120, width: 100, height: 110, weight: 420, allow_rotation: false, stackable: true, fragile: false, color: '#f4c542' },
   { id: 'carton-c', name: 'Apparel cartons', sku: 'AP-110', quantity: 10, length: 55, width: 40, height: 35, weight: 22, allow_rotation: true, stackable: true, fragile: false, color: '#6e8798' },
 ]
+
+export const demoOptimizationResult = demoResult as OptimizationResult
