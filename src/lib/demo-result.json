@@ -1,0 +1,38 @@
+{
+  "status": "optimized",
+  "algorithm": "Precomputed secure demo plan",
+  "score": 46.12,
+  "volume_utilization": 17.35,
+  "payload_utilization": 31.11,
+  "balance_score": 83.83,
+  "center_of_mass": [247.99, 108.51, 44.74],
+  "placed_count": 16,
+  "total_count": 16,
+  "placed_weight": 1400.0,
+  "placed_volume": 4466000.0,
+  "placements": [
+    {"unit_id":"carton-c-2","source_item_id":"carton-c","name":"Apparel cartons","position":[0.0,0.0,0.0],"dimensions":[35.0,55.0,40.0],"weight":22.0,"color":"#6e8798","loading_order":6},
+    {"unit_id":"carton-c-4","source_item_id":"carton-c","name":"Apparel cartons","position":[0.0,55.0,0.0],"dimensions":[40.0,55.0,35.0],"weight":22.0,"color":"#6e8798","loading_order":7},
+    {"unit_id":"carton-c-5","source_item_id":"carton-c","name":"Apparel cartons","position":[0.0,110.0,0.0],"dimensions":[55.0,40.0,35.0],"weight":22.0,"color":"#6e8798","loading_order":8},
+    {"unit_id":"carton-c-8","source_item_id":"carton-c","name":"Apparel cartons","position":[0.0,150.0,0.0],"dimensions":[55.0,40.0,35.0],"weight":22.0,"color":"#6e8798","loading_order":9},
+    {"unit_id":"carton-c-9","source_item_id":"carton-c","name":"Apparel cartons","position":[35.0,0.0,0.0],"dimensions":[55.0,40.0,35.0],"weight":22.0,"color":"#6e8798","loading_order":10},
+    {"unit_id":"carton-c-7","source_item_id":"carton-c","name":"Apparel cartons","position":[90.0,0.0,0.0],"dimensions":[55.0,40.0,35.0],"weight":22.0,"color":"#6e8798","loading_order":12},
+    {"unit_id":"carton-c-6","source_item_id":"carton-c","name":"Apparel cartons","position":[145.0,0.0,0.0],"dimensions":[55.0,40.0,35.0],"weight":22.0,"color":"#6e8798","loading_order":13},
+    {"unit_id":"carton-c-1","source_item_id":"carton-c","name":"Apparel cartons","position":[40.0,55.0,0.0],"dimensions":[55.0,40.0,35.0],"weight":22.0,"color":"#6e8798","loading_order":11},
+    {"unit_id":"carton-c-3","source_item_id":"carton-c","name":"Apparel cartons","position":[200.0,0.0,0.0],"dimensions":[55.0,40.0,35.0],"weight":22.0,"color":"#6e8798","loading_order":14},
+    {"unit_id":"pallet-b-2","source_item_id":"pallet-b","name":"Retail pallet","position":[200.0,40.0,0.0],"dimensions":[120.0,100.0,110.0],"weight":420.0,"color":"#f4c542","loading_order":1},
+    {"unit_id":"crate-a-3","source_item_id":"crate-a","name":"Electronics crate","position":[95.0,55.0,0.0],"dimensions":[80.0,60.0,55.0],"weight":85.0,"color":"#ff8a1f","loading_order":3},
+    {"unit_id":"crate-a-2","source_item_id":"crate-a","name":"Electronics crate","position":[95.0,115.0,0.0],"dimensions":[80.0,60.0,55.0],"weight":85.0,"color":"#ff8a1f","loading_order":4},
+    {"unit_id":"carton-c-10","source_item_id":"carton-c","name":"Apparel cartons","position":[255.0,0.0,0.0],"dimensions":[55.0,40.0,35.0],"weight":22.0,"color":"#6e8798","loading_order":15},
+    {"unit_id":"crate-a-4","source_item_id":"crate-a","name":"Electronics crate","position":[320.0,40.0,0.0],"dimensions":[80.0,60.0,55.0],"weight":85.0,"color":"#ff8a1f","loading_order":5},
+    {"unit_id":"pallet-b-1","source_item_id":"pallet-b","name":"Retail pallet","position":[320.0,100.0,0.0],"dimensions":[120.0,100.0,110.0],"weight":420.0,"color":"#f4c542","loading_order":2},
+    {"unit_id":"crate-a-1","source_item_id":"crate-a","name":"Electronics crate","position":[0.0,110.0,35.0],"dimensions":[55.0,80.0,60.0],"weight":85.0,"color":"#ff8a1f","loading_order":16}
+  ],
+  "unplaced": [],
+  "recommendations": [
+    "Consider a smaller vehicle or combine this shipment with another compatible load.",
+    "Review the highlighted loading order to preserve the planned balance.",
+    "All cargo units fit within payload and dimensional limits."
+  ],
+  "runtime_ms": 0
+}
