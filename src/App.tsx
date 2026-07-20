@@ -4,6 +4,7 @@ import { LandingPage } from './pages/LandingPage'
 import { AuthPage } from './pages/AuthPage'
 import { DashboardPage } from './pages/DashboardPage'
 import { OptimizerPage } from './pages/OptimizerPage'
+import { ResetPasswordPage } from './pages/ResetPasswordPage'
 import { PlansPage, ProductsPage, SettingsPage, VehiclesPage } from './pages/DataPages'
 
 function Protected({ children }: { children: React.ReactNode }) {
@@ -17,6 +18,7 @@ export default function App() {
     <Route path="/" element={<LandingPage />} />
     <Route path="/login" element={<AuthPage mode="login" />} />
     <Route path="/register" element={<AuthPage mode="register" />} />
+    <Route path="/reset-password" element={<ResetPasswordPage />} />
     <Route path="/app" element={<Protected><DashboardPage /></Protected>} />
     <Route path="/app/optimizer" element={<Protected><OptimizerPage /></Protected>} />
     <Route path="/app/vehicles" element={<Protected><VehiclesPage /></Protected>} />

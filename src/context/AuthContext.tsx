@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
-import type { Session, User } from '@supabase/supabase-js'
+import type { AuthChangeEvent, Session, User } from '@supabase/supabase-js'
 import { isSupabaseConfigured, supabase } from '../lib/supabase'
 
 type AuthContextValue = {
@@ -7,9 +7,11 @@ type AuthContextValue = {
   session: Session | null
   loading: boolean
   demoMode: boolean
+  recoveryMode: boolean
   signIn: (email: string, password: string) => Promise<void>
   signUp: (name: string, email: string, password: string) => Promise<boolean>
   resetPassword: (email: string) => Promise<void>
+  updatePassword: (password: string) => Promise<void>
   signOut: () => Promise<void>
   enterDemo: () => void
 }
@@ -17,10 +19,15 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | null>(null)
 const DEMO_KEY = 'loadwise-demo-session'
 
+function clearDemoSession(): void {
+  try { localStorage.removeItem(DEMO_KEY) } catch { /* storage may be unavailable */ }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [session, setSession] = useState<Session | null>(null)
   const [loading, setLoading] = useState(true)
+  const [recoveryMode, setRecoveryMode] = useState(false)
   const [demoMode, setDemoMode] = useState(() => {
     try { return localStorage.getItem(DEMO_KEY) === '1' } catch { return false }
   })
@@ -33,29 +40,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return
     }
 
+    const applySession = (nextSession: Session | null, event?: AuthChangeEvent) => {
+      if (!active) return
+      setSession(nextSession)
+      setUser(nextSession?.user ?? null)
+      setRecoveryMode(event === 'PASSWORD_RECOVERY')
+      if (nextSession) {
+        clearDemoSession()
+        setDemoMode(false)
+      }
+      setLoading(false)
+    }
+
     const initialize = async () => {
       try {
         const { data, error } = await client.auth.getSession()
         if (error) throw error
-        if (!active) return
-        setSession(data.session)
-        setUser(data.session?.user ?? null)
+        applySession(data.session)
       } catch (error) {
         console.error('Unable to restore Supabase session', error)
         if (!active) return
         setSession(null)
         setUser(null)
-      } finally {
-        if (active) setLoading(false)
+        setLoading(false)
       }
     }
 
     void initialize()
-    const { data } = client.auth.onAuthStateChange((_event, nextSession) => {
-      if (!active) return
-      setSession(nextSession)
-      setUser(nextSession?.user ?? null)
-      setLoading(false)
+    const { data } = client.auth.onAuthStateChange((event, nextSession) => {
+      applySession(nextSession, event)
     })
 
     return () => {
@@ -69,12 +82,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     session,
     loading,
     demoMode,
+    recoveryMode,
     async signIn(email, password) {
       if (!supabase) throw new Error('Supabase is not configured. Use demo mode or add environment variables.')
       const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password })
       if (error) throw error
-      try { localStorage.removeItem(DEMO_KEY) } catch { /* storage may be unavailable */ }
+      clearDemoSession()
       setDemoMode(false)
+      setRecoveryMode(false)
     },
     async signUp(name, email, password) {
       if (!supabase) throw new Error('Supabase is not configured. Use demo mode or add environment variables.')
@@ -94,25 +109,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const normalizedEmail = email.trim()
       if (!normalizedEmail) throw new Error('Enter your email address first.')
       const { error } = await supabase.auth.resetPasswordForEmail(normalizedEmail, {
-        redirectTo: `${window.location.origin}/login`,
+        redirectTo: `${window.location.origin}/reset-password`,
       })
       if (error) throw error
     },
+    async updatePassword(password) {
+      if (!supabase) throw new Error('Supabase is not configured.')
+      if (password.length < 8) throw new Error('Password must contain at least 8 characters.')
+      const { error } = await supabase.auth.updateUser({ password })
+      if (error) throw error
+      setRecoveryMode(false)
+    },
     async signOut() {
-      try { localStorage.removeItem(DEMO_KEY) } catch { /* storage may be unavailable */ }
+      clearDemoSession()
       setDemoMode(false)
+      setRecoveryMode(false)
+      let signOutError: Error | null = null
       if (supabase) {
         const { error } = await supabase.auth.signOut()
-        if (error) throw error
+        if (error) signOutError = error
       }
       setSession(null)
       setUser(null)
+      if (signOutError) throw signOutError
     },
     enterDemo() {
       try { localStorage.setItem(DEMO_KEY, '1') } catch { /* storage may be unavailable */ }
+      setRecoveryMode(false)
       setDemoMode(true)
     },
-  }), [user, session, loading, demoMode])
+  }), [user, session, loading, demoMode, recoveryMode])
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

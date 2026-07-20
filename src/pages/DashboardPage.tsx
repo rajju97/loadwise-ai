@@ -6,9 +6,15 @@ import { MetricCard } from '../components/MetricCard'
 import { useAuth } from '../context/AuthContext'
 import { fetchPlans, fetchProducts, fetchVehicles, type SavedPlan } from '../lib/data'
 import { demoItems, demoVehicles } from '../lib/demo'
+import type { LoadItem, Vehicle } from '../types'
 
-function readDemoPlans(): SavedPlan[] {
-  try { return JSON.parse(localStorage.getItem('loadwise-demo-plans') || '[]') as SavedPlan[] } catch { return [] }
+function readStoredArray<T>(key: string, fallback: T[]): T[] {
+  try {
+    const value = JSON.parse(localStorage.getItem(key) || 'null')
+    return Array.isArray(value) ? value as T[] : fallback
+  } catch {
+    return fallback
+  }
 }
 
 export function DashboardPage() {
@@ -27,9 +33,9 @@ export function DashboardPage() {
       try {
         if (demoMode) {
           if (!active) return
-          setPlans(readDemoPlans())
-          setVehicleCount(demoVehicles.length)
-          setProductCount(demoItems.length)
+          setPlans(readStoredArray<SavedPlan>('loadwise-demo-plans', []))
+          setVehicleCount(readStoredArray<Vehicle>('loadwise-demo-vehicles', demoVehicles).length)
+          setProductCount(readStoredArray<LoadItem>('loadwise-demo-products', demoItems).length)
           return
         }
         const [savedPlans, vehicles, products] = await Promise.all([fetchPlans(), fetchVehicles(), fetchProducts()])
@@ -80,7 +86,7 @@ export function DashboardPage() {
             {plans.length === 0 ? <div className="empty-data"><span><Boxes /></span><h2>No saved plans yet</h2><p>Run the optimizer and save your first real plan.</p><Link className="button button-sm" to="/app/optimizer">Create first plan</Link></div> : <div className="plan-list">
               {plans.slice(0, 5).map((plan, index) => {
                 const utilization = Math.round(Number(plan.plan_data?.result?.volume_utilization || 0))
-                return <div className="plan-row" key={plan.id}><span className={`plan-icon tone-${index % 3 + 1}`}><Boxes /></span><div className="plan-main"><strong>{plan.reference_code || plan.name}</strong><span>{plan.plan_data?.vehicle?.name || 'Saved vehicle'}</span></div><div className="util-bar"><span><i style={{ width: `${utilization}%` }} /></span><b>{utilization}%</b></div><small><Clock3 size={14} /> {new Date(plan.created_at).toLocaleString()}</small><Link className="icon-button" to="/app/plans" aria-label="Open saved plans"><ArrowRight size={16} /></Link></div>
+                return <div className="plan-row" key={plan.id}><span className={`plan-icon tone-${index % 3 + 1}`}><Boxes /></span><div className="plan-main"><strong>{plan.reference_code || plan.name}</strong><span>{plan.plan_data?.vehicle?.name || 'Saved vehicle'}</span></div><div className="util-bar"><span><i style={{ width: `${utilization}%` }} /></span><b>{utilization}%</b></div><small><Clock3 size={14} /> {new Date(plan.created_at).toLocaleString()}</small><Link className="icon-button" to={`/app/optimizer?plan=${encodeURIComponent(plan.id)}`} aria-label={`Open ${plan.name || 'saved plan'}`}><ArrowRight size={16} /></Link></div>
               })}
             </div>}
           </section>

@@ -24,14 +24,14 @@ const SETTINGS_KEY = 'loadwise-workspace-preferences'
 const DEMO_WORKSPACE_KEY = 'loadwise-demo-workspace-name'
 
 type Preferences = {
-  unitSystem: 'metric' | 'imperial'
   objective: 'balanced_utilization' | 'maximum_volume' | 'maximum_payload'
 }
 
 function readStoredArray<T>(key: string, fallback: T[]): T[] {
   try {
     const stored = localStorage.getItem(key)
-    return stored ? JSON.parse(stored) as T[] : fallback
+    const parsed = stored ? JSON.parse(stored) : fallback
+    return Array.isArray(parsed) ? parsed as T[] : fallback
   } catch {
     return fallback
   }
@@ -45,13 +45,12 @@ function readPreferences(): Preferences {
   try {
     const stored = JSON.parse(localStorage.getItem(SETTINGS_KEY) || '{}') as Partial<Preferences>
     return {
-      unitSystem: stored.unitSystem === 'imperial' ? 'imperial' : 'metric',
       objective: ['balanced_utilization', 'maximum_volume', 'maximum_payload'].includes(stored.objective || '')
         ? stored.objective as Preferences['objective']
         : 'balanced_utilization',
     }
   } catch {
-    return { unitSystem: 'metric', objective: 'balanced_utilization' }
+    return { objective: 'balanced_utilization' }
   }
 }
 
@@ -232,7 +231,7 @@ export function PlansPage() {
     {error && <div className="form-error page-error">{error}</div>}
     {loading ? <div className="panel data-loader"><LoaderCircle className="spin"/> Loading plans…</div> : plans.length === 0 ? <div className="panel empty-data"><span><Route/></span><h2>Your saved plans will live here</h2><p>Run an optimization and save the result to build your reusable plan library.</p><Link className="button" to="/app/optimizer"><Boxes size={17}/> Create first plan</Link></div> : <div className="panel data-page"><div className="panel-head"><div><h3>Plan library</h3><p>{plans.length} optimized load plans</p></div><Link className="button" to="/app/optimizer"><Plus size={16}/> New plan</Link></div><div className="saved-plan-grid">{plans.map((plan) => {
       const result = plan.plan_data?.result
-      return <article className="saved-plan-card" key={plan.id}><div className="saved-plan-top"><span><Boxes/></span><small>{plan.reference_code || 'Saved plan'}</small></div><h3>{plan.name || 'Untitled load plan'}</h3><p>{plan.plan_data?.vehicle?.name || 'Unknown vehicle'}</p><div className="saved-plan-metrics"><div><b>{Math.round(Number(result?.volume_utilization || 0))}%</b><span>Space</span></div><div><b>{Math.round(Number(result?.payload_utilization || 0))}%</b><span>Payload</span></div><div><b>{Number(result?.placed_count || 0)}</b><span>Items</span></div></div><footer><CalendarClock size={14}/>{Number.isNaN(new Date(plan.created_at).getTime()) ? 'Unknown date' : new Date(plan.created_at).toLocaleString()}</footer></article>
+      return <article className="saved-plan-card" key={plan.id}><div className="saved-plan-top"><span><Boxes/></span><small>{plan.reference_code || 'Saved plan'}</small></div><h3>{plan.name || 'Untitled load plan'}</h3><p>{plan.plan_data?.vehicle?.name || 'Unknown vehicle'}</p><div className="saved-plan-metrics"><div><b>{Math.round(Number(result?.volume_utilization || 0))}%</b><span>Space</span></div><div><b>{Math.round(Number(result?.payload_utilization || 0))}%</b><span>Payload</span></div><div><b>{Number(result?.placed_count || 0)}</b><span>Items</span></div></div><footer><CalendarClock size={14}/>{Number.isNaN(new Date(plan.created_at).getTime()) ? 'Unknown date' : new Date(plan.created_at).toLocaleString()}</footer><Link className="button button-outline full-width" to={`/app/optimizer?plan=${encodeURIComponent(plan.id)}`}>Open plan</Link></article>
     })}</div></div>}
   </AppShell>
 }
@@ -297,7 +296,7 @@ export function SettingsPage() {
       <form className="panel settings-form" onSubmit={saveSettings}>
         {loading ? <div className="data-loader"><LoaderCircle className="spin"/> Loading settings…</div> : <>
           {activeTab === 'general' && <><h3>Workspace details</h3><p>These settings identify your organization across saved plans.</p><label>Workspace name<input value={workspaceName} maxLength={120} onChange={(event) => setWorkspaceName(event.target.value)}/></label></>}
-          {activeTab === 'optimization' && <><h3>Optimization defaults</h3><p>These browser preferences are used when opening a new load plan.</p><label>Default unit system<select value={preferences.unitSystem} onChange={(event) => setPreferences({...preferences, unitSystem: event.target.value as Preferences['unitSystem']})}><option value="metric">Metric (cm, kg)</option><option value="imperial">Imperial (in, lb)</option></select></label><label>Default optimization objective<select value={preferences.objective} onChange={(event) => setPreferences({...preferences, objective: event.target.value as Preferences['objective']})}><option value="balanced_utilization">Balanced utilization</option><option value="maximum_volume">Maximum volume</option><option value="maximum_payload">Maximum payload</option></select></label></>}
+          {activeTab === 'optimization' && <><h3>Optimization defaults</h3><p>These browser preferences are used when opening a new load plan.</p><label>Unit system<input value="Metric (cm, kg)" readOnly aria-readonly="true"/></label><p>Imperial conversion is not available yet, so all dimensions and weights remain metric.</p><label>Default optimization objective<select value={preferences.objective} onChange={(event) => setPreferences({...preferences, objective: event.target.value as Preferences['objective']})}><option value="balanced_utilization">Balanced utilization</option><option value="maximum_volume">Maximum volume</option><option value="maximum_payload">Maximum payload</option></select></label></>}
           {activeTab === 'connection' && <><h3>Supabase connection</h3><p>{demoMode ? 'Demo mode stores sample data in this browser and does not call protected optimizer compute.' : 'Your account is connected through Supabase Auth. Database access is restricted by organization-level Row Level Security.'}</p><div className="success-banner"><Check size={18}/><strong>{demoMode ? 'Secure demo mode active' : 'Authenticated connection active'}</strong></div></>}
           {error && <div className="form-error page-error">{error}</div>}
           {message && <div className="success-banner"><Check size={18}/><strong>{message}</strong></div>}

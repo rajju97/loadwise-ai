@@ -6,7 +6,7 @@ A startup-ready MVP for intelligent vehicle load planning. Users can register, m
 
 - **Frontend:** React, TypeScript, Vite, React Three Fiber
 - **Backend:** Python, FastAPI
-- **Optimization:** Budgeted genetic search + extreme-point 3D bin packing + support, payload, fragility and balance constraints
+- **Optimization:** Budgeted genetic search + extreme-point 3D bin packing + support, payload, fragility and stability constraints
 - **Database/Auth:** Supabase Postgres, Auth and Row Level Security
 - **Deployment:** Vercel
 
@@ -32,11 +32,24 @@ The Vite dev server proxies `/api` to port `8000`.
 ## Supabase setup
 
 1. Create a Supabase project.
-2. Open SQL Editor and run `supabase/schema.sql`.
-3. Apply every SQL file in `supabase/migrations/` in filename order. The optimizer quota migration is required before `/api/optimize` can accept authenticated requests.
+2. Open SQL Editor and run `supabase/schema.sql` for a fresh installation.
+3. For an existing installation, apply every SQL file in `supabase/migrations/` in filename order. The optimizer quota and role/atomic-save migrations are required.
 4. Add the Supabase URL and publishable key to both the frontend and backend variables shown in `.env.example`.
-5. Do **not** configure a service-role key for this application. The optimizer validates the user's bearer token and calls a narrowly scoped authenticated RPC.
-6. In Supabase Auth URL configuration, add your local and Vercel callback URLs.
+5. Do **not** configure a service-role key for this application. The optimizer validates the user's bearer token and calls narrowly scoped authenticated RPCs.
+6. In Supabase Auth URL configuration, add your local, Vercel, and `/reset-password` callback URLs.
+
+### Workspace roles
+
+Database policies enforce these boundaries even when requests bypass the UI:
+
+- **Owner:** manages workspace membership and all workspace records.
+- **Admin:** manages workspace details and all operational records, but cannot create, promote, demote, or remove owners.
+- **Planner:** creates and maintains records they own and can run/save optimization plans.
+- **Viewer:** read-only access to workspace vehicles, products, jobs, and saved plans.
+
+Identity fields such as `organization_id`, `created_by`, and membership user IDs are protected by database triggers. Ownership transfer is intentionally not implemented as an ordinary row update.
+
+Saving a load plan uses the `save_load_plan` security-invoker RPC. The optimization job and load plan are inserted in one database transaction, so a plan failure cannot leave an orphan optimization job.
 
 ## Vercel deployment
 
@@ -115,7 +128,7 @@ python -m pytest backend/tests -q
 npm run build
 ```
 
-The backend suite includes regression tests for anonymous rejection, authenticated requests, quota exhaustion and the 60-unit limit.
+The backend suite covers anonymous rejection, authenticated requests, quota exhaustion, the 60-unit limit, collision and payload constraints, objective-specific selection, low center-of-mass stability scoring, and malformed environment configuration.
 
 ## Why a hybrid optimizer instead of “pure ML”
 
@@ -123,7 +136,7 @@ The backend suite includes regression tests for anonymous rejection, authenticat
 
 ## Roadmap
 
-- Organization invitations and role management
+- Organization invitations and explicit ownership-transfer workflow
 - Async optimization queue for very large loads
 - Axle-specific load limits and route restrictions
 - Barcode/CSV import

@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, replace
 from itertools import permutations
 import os
-from math import prod
+from math import isfinite, prod
 from random import Random
 from time import perf_counter
 from typing import Iterable
@@ -14,6 +14,26 @@ EPSILON = 1e-7
 MAX_COMPLEXITY_BUDGET = 2_500_000
 MAX_SEARCH_EVALUATIONS = 120
 MAX_TIME_BUDGET_SECONDS = 8.0
+
+
+
+
+def _bounded_env_int(name: str, default: int, minimum: int, maximum: int) -> int:
+    try:
+        value = int(os.getenv(name, str(default)))
+    except (TypeError, ValueError):
+        value = default
+    return max(minimum, min(value, maximum))
+
+
+def _bounded_env_float(name: str, default: float, minimum: float, maximum: float) -> float:
+    try:
+        value = float(os.getenv(name, str(default)))
+    except (TypeError, ValueError):
+        value = default
+    if not isfinite(value):
+        value = default
+    return max(minimum, min(value, maximum))
 
 
 class OptimizationBudgetExceeded(RuntimeError):
@@ -176,9 +196,12 @@ def compute_center_of_mass(packed: list[Packed], vehicle_dims: tuple[float, floa
 
 
 def balance_score(center: tuple[float, float, float], vehicle_dims: tuple[float, float, float]) -> float:
-    target = (vehicle_dims[0] * 0.48, vehicle_dims[1] * 0.5, vehicle_dims[2] * 0.42)
-    normalized = sum(abs(center[i] - target[i]) / max(vehicle_dims[i], EPSILON) for i in range(3)) / 3
-    return max(0.0, min(100.0, (1.0 - normalized * 2.1) * 100))
+    vehicle_length, vehicle_width, vehicle_height = vehicle_dims
+    longitudinal_error = abs(center[0] - vehicle_length * 0.48) / max(vehicle_length, EPSILON)
+    lateral_error = abs(center[1] - vehicle_width * 0.50) / max(vehicle_width, EPSILON)
+    vertical_ratio = center[2] / max(vehicle_height, EPSILON)
+    stability_penalty = longitudinal_error * 0.42 + lateral_error * 0.38 + vertical_ratio * 0.20
+    return max(0.0, min(100.0, (1.0 - stability_penalty * 2.2) * 100))
 
 
 def candidate_cost(
@@ -243,13 +266,30 @@ def pack_order(order: list[Unit], request: OptimizationRequest, deadline: float)
     balance = balance_score(center, vehicle_dims)
     placement_ratio = len(packed) / max(len(order), 1) * 100
     fragile_penalty = sum(1 for box in packed if box.unit.fragile and box.position[2] > vehicle.height * 0.55) * 0.3
-    score = (
-        volume_utilization * 0.50
-        + payload_utilization * 0.14
-        + balance * 0.18
-        + placement_ratio * 0.18
-        - fragile_penalty
-    )
+    if request.objective == "maximum_volume":
+        score = (
+            volume_utilization * 0.62
+            + payload_utilization * 0.08
+            + balance * 0.12
+            + placement_ratio * 0.18
+            - fragile_penalty
+        )
+    elif request.objective == "maximum_payload":
+        score = (
+            volume_utilization * 0.14
+            + payload_utilization * 0.58
+            + balance * 0.12
+            + placement_ratio * 0.16
+            - fragile_penalty
+        )
+    else:
+        score = (
+            volume_utilization * 0.38
+            + payload_utilization * 0.18
+            + balance * 0.24
+            + placement_ratio * 0.20
+            - fragile_penalty
+        )
     return PackOutcome(packed, unplaced, score, volume_utilization, payload_utilization, balance, center)
 
 
@@ -318,16 +358,13 @@ def optimize(request: OptimizationRequest) -> OptimizationResult:
     started = perf_counter()
     units = expand_units(request.items)
     random = Random(42)
-
-    try:
-        configured_time_budget = float(os.getenv("OPTIMIZER_TIME_BUDGET_SECONDS", "8"))
-    except ValueError:
-        configured_time_budget = MAX_TIME_BUDGET_SECONDS
-    time_budget = max(1.0, min(configured_time_budget, MAX_TIME_BUDGET_SECONDS))
+    time_budget = _bounded_env_float(
+        "OPTIMIZER_TIME_BUDGET_SECONDS", MAX_TIME_BUDGET_SECONDS, 1.0, MAX_TIME_BUDGET_SECONDS
+    )
     deadline = started + time_budget
 
-    requested_population = request.population_size or int(os.getenv("OPTIMIZER_POPULATION", "8"))
-    requested_generations = request.generations or int(os.getenv("OPTIMIZER_GENERATIONS", "6"))
+    requested_population = request.population_size or _bounded_env_int("OPTIMIZER_POPULATION", 8, 4, 12)
+    requested_generations = request.generations or _bounded_env_int("OPTIMIZER_GENERATIONS", 6, 1, 10)
     unit_complexity = max(len(units) ** 3, 1)
     max_evaluations = max(4, min(MAX_SEARCH_EVALUATIONS, MAX_COMPLEXITY_BUDGET // unit_complexity))
     population_size = max(4, min(requested_population, 12, max_evaluations))
@@ -392,14 +429,7 @@ def optimize(request: OptimizationRequest) -> OptimizationResult:
         )
         for box in best_outcome.packed
     ]
-    unplaced = [
-        UnplacedItem(
-            unit_id=unit.unit_id,
-            name=unit.name,
-            reason="No feasible position within payload and loading constraints",
-        )
-        for unit in best_outcome.unplaced
-    ]
+    unplaced = [UnplacedItem(unit_id=unit.unit_id, name=unit.name, reason="No feasible position within payload and loading constraints") for unit in best_outcome.unplaced]
     runtime_ms = int((perf_counter() - started) * 1000)
     placed_volume = sum(box.unit.volume for box in best_outcome.packed)
     placed_weight = sum(box.unit.weight for box in best_outcome.packed)

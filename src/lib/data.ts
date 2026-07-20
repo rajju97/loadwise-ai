@@ -1,6 +1,8 @@
 import { supabase } from './supabase'
 import type { LoadItem, OptimizationResult, Vehicle } from '../types'
 
+export type OptimizationObjective = 'balanced_utilization' | 'maximum_volume' | 'maximum_payload'
+
 export type SavedPlan = {
   id: string
   name: string
@@ -9,6 +11,7 @@ export type SavedPlan = {
   plan_data: {
     vehicle: Vehicle
     items: LoadItem[]
+    objective?: OptimizationObjective
     result: OptimizationResult
   }
 }
@@ -147,35 +150,29 @@ export async function createProduct(item: LoadItem): Promise<LoadItem> {
   return { ...item, id: data.id, name: data.name, sku: data.sku || '' }
 }
 
-export async function saveLoadPlan(vehicle: Vehicle, items: LoadItem[], result: OptimizationResult, objective = 'balanced_utilization', name?: string): Promise<SavedPlan> {
+export async function saveLoadPlan(vehicle: Vehicle, items: LoadItem[], result: OptimizationResult, objective: OptimizationObjective = 'balanced_utilization', name?: string): Promise<SavedPlan> {
   const client = requireClient()
-  const [organizationId, userId] = await Promise.all([getCurrentOrganizationId(), requireUserId()])
-  const referenceCode = `LW-${new Date().toISOString().slice(2, 10).replace(/-/g, '')}-${Math.floor(100 + Math.random() * 900)}`
+  const organizationId = await getCurrentOrganizationId()
+  const referenceCode = `LW-${new Date().toISOString().slice(2, 10).replace(/-/g, '')}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`
   const inputData = { vehicle, items, objective }
-  const vehicleId = vehicle.id && /^[0-9a-f-]{36}$/i.test(vehicle.id) ? vehicle.id : null
-  const { data: job, error: jobError } = await client.from('optimization_jobs').insert({
-    organization_id: organizationId,
-    vehicle_id: vehicleId,
-    status: 'completed',
-    objective,
-    input_data: inputData,
-    result_data: result,
-    runtime_ms: result.runtime_ms,
-    created_by: userId,
-  }).select('id').single()
-  if (jobError) throw jobError
-
   const planData = { vehicle, items, objective, result }
-  const { data, error } = await client.from('load_plans').insert({
-    organization_id: organizationId,
-    optimization_job_id: job.id,
-    name: name?.trim() || `${vehicle.name} load plan`,
-    reference_code: referenceCode,
-    plan_data: planData,
-    created_by: userId,
-  }).select('*').single()
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+  const vehicleId = vehicle.id && uuidPattern.test(vehicle.id) ? vehicle.id : null
+  const { data, error } = await client.rpc('save_load_plan', {
+    p_organization_id: organizationId,
+    p_vehicle_id: vehicleId,
+    p_objective: objective,
+    p_input_data: inputData,
+    p_result_data: result,
+    p_runtime_ms: result.runtime_ms,
+    p_name: name?.trim() || `${vehicle.name} load plan`,
+    p_reference_code: referenceCode,
+    p_plan_data: planData,
+  })
   if (error) throw error
-  return data as SavedPlan
+  const savedPlan = Array.isArray(data) ? data[0] : data
+  if (!savedPlan || typeof savedPlan !== 'object') throw new Error('The saved plan response was invalid')
+  return savedPlan as SavedPlan
 }
 
 export async function fetchPlans(): Promise<SavedPlan[]> {

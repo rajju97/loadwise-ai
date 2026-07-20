@@ -21,6 +21,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
 
   async function submit(event: FormEvent) {
     event.preventDefault()
+    if (busy) return
     setBusy(true)
     setError('')
     setNotice('')
@@ -43,6 +44,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
   }
 
   async function requestPasswordReset() {
+    if (busy) return
     setBusy(true)
     setError('')
     setNotice('')
@@ -57,6 +59,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
   }
 
   function startDemo() {
+    if (busy) return
     enterDemo()
     navigate('/app')
   }
@@ -72,7 +75,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
           <div className="auth-benefits">
             <span><Check /> Interactive 3D load plans</span>
             <span><Check /> Vehicle and product library</span>
-            <span><Check /> Utilization and balance reporting</span>
+            <span><Check /> Utilization and stability reporting</span>
           </div>
         </div>
         <div className="auth-quote">“The best logistics tools make a complex decision feel obvious.”</div>
@@ -84,8 +87,8 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
           <h2>{isRegister ? 'Start optimizing loads' : 'Good to see you again'}</h2>
           <p className="auth-subtitle">{isRegister ? 'Set up your logistics workspace in less than a minute.' : 'Enter your details to continue to your dashboard.'}</p>
           <form onSubmit={submit} className="auth-form">
-            {isRegister && <label>Full name<div className="input-wrap"><User size={18} /><input required value={name} onChange={e => setName(e.target.value)} placeholder="Rajveer Singh" /></div></label>}
-            <label>Work email<div className="input-wrap"><Mail size={18} /><input required type="email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@company.com" /></div></label>
+            {isRegister && <label>Full name<div className="input-wrap"><User size={18} /><input required maxLength={120} autoComplete="name" value={name} onChange={e => setName(e.target.value)} placeholder="Rajveer Singh" /></div></label>}
+            <label>Work email<div className="input-wrap"><Mail size={18} /><input required maxLength={254} type="email" autoComplete="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@company.com" /></div></label>
             <label>Password<div className="input-wrap"><LockKeyhole size={18} /><input required minLength={8} autoComplete={isRegister ? 'new-password' : 'current-password'} type={showPassword ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} placeholder="Minimum 8 characters" /><button type="button" aria-label={showPassword ? 'Hide password' : 'Show password'} onClick={() => setShowPassword(!showPassword)}>{showPassword ? <EyeOff size={18} /> : <Eye size={18} />}</button></div></label>
             {!isRegister && <div className="form-row"><span /><button type="button" className="text-button" disabled={busy} onClick={requestPasswordReset}>Forgot password?</button></div>}
             {error && <div className="form-error">{error}</div>}
@@ -93,7 +96,7 @@ export function AuthPage({ mode }: { mode: 'login' | 'register' }) {
             <button className="button auth-submit" disabled={busy}>{busy ? 'Please wait…' : isRegister ? 'Create account' : 'Sign in'} <ArrowRight size={17} /></button>
           </form>
           <div className="divider"><span>or</span></div>
-          <button type="button" className="button button-outline auth-submit" onClick={startDemo}>Explore demo workspace</button>
+          <button type="button" className="button button-outline auth-submit" disabled={busy} onClick={startDemo}>Explore demo workspace</button>
           {!isSupabaseConfigured && <p className="config-note">Demo mode is available. Add Supabase environment variables to enable real accounts.</p>}
           <p className="auth-switch">{isRegister ? 'Already have an account?' : 'New to LoadWise AI?'} <Link to={isRegister ? '/login' : '/register'}>{isRegister ? 'Sign in' : 'Create account'}</Link></p>
         </div>
