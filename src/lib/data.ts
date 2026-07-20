@@ -1,6 +1,8 @@
 import { supabase } from './supabase'
 import type { LoadItem, OptimizationResult, Vehicle } from '../types'
 
+export type OptimizationObjective = 'balanced_utilization' | 'maximum_volume' | 'maximum_payload'
+
 export type SavedPlan = {
   id: string
   name: string
@@ -9,6 +11,7 @@ export type SavedPlan = {
   plan_data: {
     vehicle: Vehicle
     items: LoadItem[]
+    objective?: OptimizationObjective
     result: OptimizationResult
   }
 }
@@ -147,7 +150,7 @@ export async function createProduct(item: LoadItem): Promise<LoadItem> {
   return { ...item, id: data.id, name: data.name, sku: data.sku || '' }
 }
 
-export async function saveLoadPlan(vehicle: Vehicle, items: LoadItem[], result: OptimizationResult, objective = 'balanced_utilization', name?: string): Promise<SavedPlan> {
+export async function saveLoadPlan(vehicle: Vehicle, items: LoadItem[], result: OptimizationResult, objective: OptimizationObjective = 'balanced_utilization', name?: string): Promise<SavedPlan> {
   const client = requireClient()
   const [organizationId, userId] = await Promise.all([getCurrentOrganizationId(), requireUserId()])
   const referenceCode = `LW-${new Date().toISOString().slice(2, 10).replace(/-/g, '')}-${Math.floor(100 + Math.random() * 900)}`
