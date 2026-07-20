@@ -47,6 +47,15 @@ export function AppShell({ children, title, subtitle }: { children: ReactNode; t
     }
   }, [demoMode])
 
+  useEffect(() => {
+    const handleWorkspaceUpdate = (event: Event) => {
+      const name = (event as CustomEvent<{ name?: string }>).detail?.name?.trim()
+      if (name) setWorkspaceName(name)
+    }
+    window.addEventListener('loadwise-workspace-updated', handleWorkspaceUpdate)
+    return () => window.removeEventListener('loadwise-workspace-updated', handleWorkspaceUpdate)
+  }, [])
+
   const doSignOut = async () => {
     try {
       await signOut()
