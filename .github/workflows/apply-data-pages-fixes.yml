@@ -1,0 +1,67 @@
+name: Apply data page fixes
+
+on:
+  push:
+    branches:
+      - fix/systematic-bug-sweep
+    paths:
+      - '.github/workflows/apply-data-pages-fixes.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/systematic-bug-sweep
+          fetch-depth: 0
+      - name: Apply exact UI corrections
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path('src/pages/DataPages.tsx')
+          text = path.read_text()
+          replacements = [
+              (
+                  "type Preferences = {\n  unitSystem: 'metric' | 'imperial'\n  objective: 'balanced_utilization' | 'maximum_volume' | 'maximum_payload'\n}",
+                  "type Preferences = {\n  objective: 'balanced_utilization' | 'maximum_volume' | 'maximum_payload'\n}",
+              ),
+              (
+                  "    const stored = localStorage.getItem(key)\n    return stored ? JSON.parse(stored) as T[] : fallback",
+                  "    const stored = localStorage.getItem(key)\n    const parsed = stored ? JSON.parse(stored) : fallback\n    return Array.isArray(parsed) ? parsed as T[] : fallback",
+              ),
+              (
+                  "    return {\n      unitSystem: stored.unitSystem === 'imperial' ? 'imperial' : 'metric',\n      objective: ['balanced_utilization', 'maximum_volume', 'maximum_payload'].includes(stored.objective || '')\n        ? stored.objective as Preferences['objective']\n        : 'balanced_utilization',\n    }\n  } catch {\n    return { unitSystem: 'metric', objective: 'balanced_utilization' }",
+                  "    return {\n      objective: ['balanced_utilization', 'maximum_volume', 'maximum_payload'].includes(stored.objective || '')\n        ? stored.objective as Preferences['objective']\n        : 'balanced_utilization',\n    }\n  } catch {\n    return { objective: 'balanced_utilization' }",
+              ),
+              (
+                  "<footer><CalendarClock size={14}/>{Number.isNaN(new Date(plan.created_at).getTime()) ? 'Unknown date' : new Date(plan.created_at).toLocaleString()}</footer></article>",
+                  "<footer><CalendarClock size={14}/>{Number.isNaN(new Date(plan.created_at).getTime()) ? 'Unknown date' : new Date(plan.created_at).toLocaleString()}</footer><Link className=\"button button-outline full-width\" to={`/app/optimizer?plan=${encodeURIComponent(plan.id)}`}>Open plan</Link></article>",
+              ),
+              (
+                  "{activeTab === 'optimization' && <><h3>Optimization defaults</h3><p>These browser preferences are used when opening a new load plan.</p><label>Default unit system<select value={preferences.unitSystem} onChange={(event) => setPreferences({...preferences, unitSystem: event.target.value as Preferences['unitSystem']})}><option value=\"metric\">Metric (cm, kg)</option><option value=\"imperial\">Imperial (in, lb)</option></select></label><label>Default optimization objective<select value={preferences.objective} onChange={(event) => setPreferences({...preferences, objective: event.target.value as Preferences['objective']})}><option value=\"balanced_utilization\">Balanced utilization</option><option value=\"maximum_volume\">Maximum volume</option><option value=\"maximum_payload\">Maximum payload</option></select></label></>}",
+                  "{activeTab === 'optimization' && <><h3>Optimization defaults</h3><p>These browser preferences are used when opening a new load plan.</p><label>Unit system<input value=\"Metric (cm, kg)\" readOnly aria-readonly=\"true\"/></label><p>Imperial conversion is not available yet, so all dimensions and weights remain metric.</p><label>Default optimization objective<select value={preferences.objective} onChange={(event) => setPreferences({...preferences, objective: event.target.value as Preferences['objective']})}><option value=\"balanced_utilization\">Balanced utilization</option><option value=\"maximum_volume\">Maximum volume</option><option value=\"maximum_payload\">Maximum payload</option></select></label></>}",
+              ),
+          ]
+
+          for old, new in replacements:
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'Expected one exact match, found {count}: {old[:80]!r}')
+              text = text.replace(old, new, 1)
+
+          path.write_text(text)
+      - name: Commit corrected UI
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm .github/workflows/apply-data-pages-fixes.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Fix saved-plan reuse and honest unit settings"
+          git push origin HEAD:fix/systematic-bug-sweep
