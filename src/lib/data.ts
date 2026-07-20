@@ -153,10 +153,11 @@ export async function createProduct(item: LoadItem): Promise<LoadItem> {
 export async function saveLoadPlan(vehicle: Vehicle, items: LoadItem[], result: OptimizationResult, objective: OptimizationObjective = 'balanced_utilization', name?: string): Promise<SavedPlan> {
   const client = requireClient()
   const organizationId = await getCurrentOrganizationId()
-  const referenceCode = `LW-${new Date().toISOString().slice(2, 10).replace(/-/g, '')}-${Math.floor(100 + Math.random() * 900)}`
+  const referenceCode = `LW-${new Date().toISOString().slice(2, 10).replace(/-/g, '')}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`
   const inputData = { vehicle, items, objective }
   const planData = { vehicle, items, objective, result }
-  const vehicleId = vehicle.id && /^[0-9a-f-]{36}$/i.test(vehicle.id) ? vehicle.id : null
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+  const vehicleId = vehicle.id && uuidPattern.test(vehicle.id) ? vehicle.id : null
   const { data, error } = await client.rpc('save_load_plan', {
     p_organization_id: organizationId,
     p_vehicle_id: vehicleId,
