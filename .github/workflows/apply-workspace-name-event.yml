@@ -1,0 +1,53 @@
+name: Apply workspace name refresh
+
+on:
+  push:
+    branches:
+      - fix/systematic-bug-sweep
+    paths:
+      - '.github/workflows/apply-workspace-name-event.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/systematic-bug-sweep
+          fetch-depth: 0
+      - name: Add workspace update event
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path('src/pages/DataPages.tsx')
+          text = path.read_text()
+          old = '''        if (demoMode) {
+          localStorage.setItem(DEMO_WORKSPACE_KEY, normalizedName)
+        } else {
+          const workspace = await updateWorkspaceName(normalizedName)
+          setWorkspaceName(workspace.name)
+        }'''
+          new = '''        if (demoMode) {
+          localStorage.setItem(DEMO_WORKSPACE_KEY, normalizedName)
+        } else {
+          const workspace = await updateWorkspaceName(normalizedName)
+          setWorkspaceName(workspace.name)
+        }
+        window.dispatchEvent(new CustomEvent('loadwise-workspace-updated', { detail: { name: normalizedName } }))'''
+          if text.count(old) != 1:
+              raise SystemExit(f'Expected one workspace save block, found {text.count(old)}')
+          path.write_text(text.replace(old, new, 1))
+      - name: Commit workspace refresh
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm .github/workflows/apply-workspace-name-event.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Refresh workspace label after save"
+          git push origin HEAD:fix/systematic-bug-sweep
