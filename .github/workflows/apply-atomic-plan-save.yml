@@ -54,7 +54,7 @@ jobs:
             }).select('*').single()
             if (error) throw error
             return data as SavedPlan
-          }'''.replace(/^          /gm, '')
+          }'''
           new = '''export async function saveLoadPlan(vehicle: Vehicle, items: LoadItem[], result: OptimizationResult, objective: OptimizationObjective = 'balanced_utilization', name?: string): Promise<SavedPlan> {
             const client = requireClient()
             const organizationId = await getCurrentOrganizationId()
@@ -77,7 +77,7 @@ jobs:
             const savedPlan = Array.isArray(data) ? data[0] : data
             if (!savedPlan || typeof savedPlan !== 'object') throw new Error('The saved plan response was invalid')
             return savedPlan as SavedPlan
-          }'''.replace(/^          /gm, '')
+          }'''
 
           if text.count(old) != 1:
               raise SystemExit(f'Expected one saveLoadPlan block, found {text.count(old)}')
